@@ -1,0 +1,51 @@
+GLACIERGUARD - INTEGRATED FLOW
+
+7 Sensor Channels + Satellite Context
+        |
+        v
+Preprocessing
+- validity handling
+- causal forward fill
+- trajectory-safe processing
+        |
+        v
+Feature Engineering
+- rolling mean
+- rolling standard deviation
+- rate of change
+- stale count
+        |
+        v
+AI MODELS
+- XGBoost gradual escalation
+- XGBoost sudden impact
+- XGBoost time-to-critical
+        |
+        v
+RISK ENGINE
+- ML probabilities
+- satellite prior
+- threshold logic
+- system-state override
+        |
+        v
+EARLY WARNING
+- risk level
+- lead time
+- alert / monitor decision
+
+RUN ORDER
+1. pip install -r requirements.txt
+2. python train_model_v3.py
+3. python run_demo.py --scenario --tick 3
+4. Open http://localhost:8000/dashboard.html
+
+LIVE MODE
+python run_demo.py --tick 5
+
+IMPORTANT
+- Satellite is a post-model prior in this version, not an XGBoost training feature.
+- Historical training data has no real seismic variation, so seismic is wired into the
+  feature schema but cannot yet be learned as a predictive signal.
+- Water/vibration/tilt/turbidity are simulated in the current prototype feed; weather
+  and seismic channels are fetched from external live sources when available.

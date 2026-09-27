@@ -1,0 +1,22 @@
+{
+  "RAW_SENSORS": [
+    "water_level_m",
+    "vibration_rms_g",
+    "tilt_deg",
+    "rainfall_mm_hr",
+    "turbidity_ntu",
+    "ambient_temp_c",
+    "seismic_energy"
+  ],
+  "VALID_PAIRING": [
+    "water_valid",
+    "vibration_valid",
+    "tilt_valid",
+    "rainfall_valid",
+    "turbidity_valid",
+    "water_valid",
+    "seismic_valid"
+  ],
+  "SHORT_WIN": 5,
+  "LONG_WIN": 20
+}

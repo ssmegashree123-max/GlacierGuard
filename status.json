@@ -1,0 +1,50 @@
+{
+  "generated_at": "2026-09-27T05:41:47.863698+00:00",
+  "mode": "scenario",
+  "latest_reading": {
+    "water_level_m": 3.4,
+    "rainfall_mm_hr": 37.0,
+    "ambient_temp_c": -0.5,
+    "seismic_energy": 0.11,
+    "vibration_rms_g": 0.18,
+    "tilt_deg": 0.018,
+    "turbidity_ntu": 50.0,
+    "sensor_status_water": "synthetic",
+    "timestamp": "2026-09-27T20:28:37.293588+00:00"
+  },
+  "risk": {
+    "p_gradual": 0.4966,
+    "p_gradual_smooth": 0.4966,
+    "p_gradual_satellite_adjusted": 0.5516,
+    "p_sudden": 0.273,
+    "p_sudden_smooth": 0.273,
+    "time_to_critical_min": 66.3,
+    "risk_level": "YELLOW",
+    "lead_time_min": 66.3,
+    "alert": false,
+    "decision": "MONITOR",
+    "gradual_alert": false,
+    "sudden_alert": false,
+    "satellite_event_alert": false,
+    "rows_of_history": 90
+  },
+  "satellite": {
+    "available": true,
+    "level": "WATCH",
+    "multiplier": 1.247,
+    "alert_active": false,
+    "message": "Lake refilling: 91% of pre-breach extent, +0.039 km2/yr",
+    "warnings": [
+      "1.11% of water touches the basin edge band (possible growth beyond the 2022 outline)"
+    ],
+    "as_of": "2026-09-27",
+    "latest_good_scene": "2026-09-07",
+    "scene_age_days": 20,
+    "fill_fraction": 0.9064,
+    "lake_lower_km2": 1.3928,
+    "lake_upper_km2": 1.4644,
+    "growth_km2_per_yr": 0.0387,
+    "edge_pct_recent": 1.11
+  },
+  "rows_of_history": 90
+}

@@ -1,0 +1,63 @@
+{
+  "gradual": {
+    "VAL": {
+      "pr_auc": 0.7712441777507331,
+      "roc_auc": 0.9466438366725984,
+      "accuracy": 0.9531428571428572,
+      "f1": 0.711943793911007,
+      "threshold": 0.5096628069877625,
+      "tn": 9400,
+      "fp": 377,
+      "fn": 115,
+      "tp": 608,
+      "positive_count": 723
+    },
+    "TEST_UNSEEN": {
+      "pr_auc": 0.8847370397267079,
+      "roc_auc": 0.9887091312427236,
+      "accuracy": 0.9195129195129195,
+      "f1": 0.7474370922646785,
+      "threshold": 0.5096628069877625,
+      "tn": 8085,
+      "fp": 811,
+      "fn": 2,
+      "tp": 1203,
+      "positive_count": 1205
+    }
+  },
+  "sudden": {
+    "VAL": {
+      "pr_auc": 0.9237103935777209,
+      "roc_auc": 0.9999045801526718,
+      "accuracy": 0.9996190476190476,
+      "f1": 0.9,
+      "threshold": 0.6556828022003174,
+      "tn": 10478,
+      "fp": 2,
+      "fn": 2,
+      "tp": 18,
+      "positive_count": 20
+    },
+    "TEST_UNSEEN": {
+      "pr_auc": null,
+      "roc_auc": null,
+      "accuracy": 0.9985149985149985,
+      "f1": 0.0,
+      "threshold": 0.6556828022003174,
+      "tn": 10086,
+      "fp": 15,
+      "fn": 0,
+      "tp": 0,
+      "positive_count": 0
+    }
+  },
+  "time_to_critical": {
+    "val_mae_min": 74.5089111328125
+  },
+  "notes": [
+    "Metrics are evaluated on trajectory-grouped synthetic telemetry.",
+    "TEST_UNSEEN sudden-impact has no positive examples, so PR-AUC/ROC-AUC/F1 are not meaningful there.",
+    "Satellite is applied as a post-model rule-based prior, not as a trained XGBoost feature.",
+    "Seismic energy is currently zero-filled in historical training data and therefore cannot be learned meaningfully yet."
+  ]
+}

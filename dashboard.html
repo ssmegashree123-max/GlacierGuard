@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GlacierGuard — Live Risk Dashboard</title>
+<style>
+  :root {
+    --bg: #0b1220;
+    --panel: #121b2e;
+    --border: #223049;
+    --text: #e6edf5;
+    --muted: #8ba0bd;
+    --green: #2ecc71;
+    --yellow: #f1c40f;
+    --orange: #e67e22;
+    --red: #e74c3c;
+    --blue: #4da3ff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px;
+  }
+  h1 { font-size: 22px; margin: 0 0 4px 0; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .subtitle { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .card .label {
+    color: var(--muted);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+  }
+  .card .value {
+    font-size: 22px;
+    font-weight: 600;
+  }
+  .card .unit { font-size: 13px; color: var(--muted); font-weight: 400; }
+  .risk-card {
+    grid-column: span 2;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .risk-row { display: flex; justify-content: space-between; align-items: center; }
+  .bar-bg {
+    width: 100%;
+    height: 10px;
+    background: #1c2a42;
+    border-radius: 6px;
+    overflow: hidden;
+    margin-top: 4px;
+  }
+  .bar-fill {
+    height: 100%;
+    border-radius: 6px;
+    transition: width 0.4s ease;
+  }
+  .note { color: var(--muted); font-size: 12px; min-height: 16px; }
+  .badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .badge.normal { background: rgba(46,204,113,0.15); color: var(--green); }
+  .badge.alert { background: rgba(231,74,60,0.18); color: var(--red); }
+  .badge.watch { background: rgba(241,196,15,0.15); color: var(--yellow); }
+  .badge.elevated { background: rgba(230,126,34,0.18); color: var(--orange); }
+  .badge.unknown { background: #1c2a42; color: var(--muted); }
+  .badge.mode { background: #1c2a42; color: var(--muted); font-weight: 500; }
+  .badge.mode.scenario { background: rgba(241,196,15,0.15); color: var(--yellow); }
+  .alert-banner {
+    display: none;
+    background: rgba(231,76,60,0.15);
+    border: 1px solid var(--red);
+    color: #ffb3ab;
+    padding: 14px 18px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    font-size: 14px;
+  }
+  .alert-banner.show { display: block; }
+  .cascade {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .cascade span.node {
+    background: #1c2a42;
+    padding: 4px 10px;
+    border-radius: 6px;
+    color: var(--text);
+  }
+  .cascade.hot span.node { background: rgba(231,76,60,0.25); color: #ffd0cb; }
+  .status-line {
+    color: var(--muted);
+    font-size: 12px;
+    margin-top: 24px;
+  }
+  .synthetic-tag {
+    font-size: 10px;
+    color: var(--yellow);
+    margin-left: 6px;
+  }
+  /* satellite section */
+  .sat-wrap { display: grid; grid-template-columns: 1fr 240px; gap: 18px; margin-bottom: 20px; }
+  @media (max-width: 900px) { .sat-wrap { grid-template-columns: 1fr; } }
+  .sat-msg { font-size: 15px; margin: 6px 0 4px; }
+  .kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-top: 12px; }
+  .kv .k { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .kv .v { font-size: 17px; font-weight: 600; }
+  .sat-warn { color: var(--yellow); font-size: 12px; margin-top: 10px; }
+  .thumb { width: 100%; border-radius: 8px; background: #000; min-height: 80px; margin-top: 6px; }
+  a { color: var(--blue); }
+</style>
+</head>
+<body>
+
+<h1>🌊 GlacierGuard — Live Risk Dashboard <span class="badge mode" id="modeBadge">connecting...</span></h1>
+<div class="subtitle">South Lhonak-type GLOF early-warning prototype — live external data + physics-informed synthetic channels + Sentinel-2 satellite context</div>
+
+<div id="alertBanner" class="alert-banner">
+  ⚠️ <strong id="alertTitle">Elevated risk detected.</strong> <span id="alertDetail"></span>
+</div>
+
+<div class="grid">
+  <div class="card risk-card">
+    <div class="label">Gradual Escalation Risk (2h window)</div>
+    <div class="risk-row">
+      <div class="value" id="pGradual">—</div>
+      <span class="badge normal" id="gradualBadge">normal</span>
+    </div>
+    <div class="bar-bg"><div class="bar-fill" id="gradualBar" style="width:0%; background:var(--blue);"></div></div>
+    <div class="note" id="gradualNote"></div>
+  </div>
+
+  <div class="card risk-card">
+    <div class="label">Sudden Impact Risk <span class="synthetic-tag">EXPERIMENTAL</span></div>
+    <div class="risk-row">
+      <div class="value" id="pSudden">—</div>
+      <span class="badge normal" id="suddenBadge">normal</span>
+    </div>
+    <div class="bar-bg"><div class="bar-fill" id="suddenBar" style="width:0%; background:var(--blue);"></div></div>
+    <div class="note" id="suddenNote"></div>
+  </div>
+
+  <div class="card">
+    <div class="label">Water Level <span class="synthetic-tag" id="waterTag">SYNTHETIC</span></div>
+    <div class="value" id="waterLevel">—<span class="unit"> m</span></div>
+  </div>
+  <div class="card">
+    <div class="label">Rainfall (live)</div>
+    <div class="value" id="rainfall">—<span class="unit"> mm/hr</span></div>
+  </div>
+  <div class="card">
+    <div class="label">Temperature (live)</div>
+    <div class="value" id="temp">—<span class="unit"> °C</span></div>
+  </div>
+  <div class="card">
+    <div class="label">Seismic Energy (live)</div>
+    <div class="value" id="seismic">—</div>
+  </div>
+  <div class="card">
+    <div class="label">Vibration <span class="synthetic-tag">SYNTHETIC</span></div>
+    <div class="value" id="vibration">—<span class="unit"> g</span></div>
+  </div>
+  <div class="card">
+    <div class="label">Tilt <span class="synthetic-tag">SYNTHETIC</span></div>
+    <div class="value" id="tilt">—<span class="unit"> °</span></div>
+  </div>
+  <div class="card">
+    <div class="label">Turbidity <span class="synthetic-tag">SYNTHETIC</span></div>
+    <div class="value" id="turbidity">—<span class="unit"> NTU</span></div>
+  </div>
+</div>
+
+<div class="sat-wrap">
+  <div class="card">
+    <div class="risk-row">
+      <div class="label" style="margin:0">Satellite Context (Sentinel-2, measured lake area)</div>
+      <span class="badge unknown" id="satBadge">—</span>
+    </div>
+    <div class="sat-msg" id="satMsg">Waiting for satellite data...</div>
+    <div class="kv">
+      <div><div class="k">Risk multiplier</div><div class="v" id="satMult">—</div></div>
+      <div><div class="k">Lake vs pre-breach extent</div><div class="v" id="satFill">—</div></div>
+      <div><div class="k">Lake area (lower–upper)</div><div class="v" id="satArea">—</div></div>
+      <div><div class="k">Refill trend</div><div class="v" id="satTrend">—</div></div>
+      <div><div class="k">Latest clear scene</div><div class="v" id="satScene">—</div></div>
+    </div>
+    <div class="sat-warn" id="satWarn"></div>
+    <div class="note" style="margin-top:10px">Advisory prior applied after the ML model (odds × multiplier); weights are hand-set, not learned.
+      <a href="satellite_panel.html" target="_blank">Satellite detail →</a></div>
+  </div>
+  <div class="card">
+    <div class="label">Latest scene overlay</div>
+    <img class="thumb" id="satThumb" alt="" style="display:none">
+    <div class="note" id="satThumbCap"></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="label" style="margin-bottom:10px;">Cascade Chain</div>
+  <div class="cascade" id="cascade">
+    <span class="node">GLOF Trigger</span>→
+    <span class="node">Flood Wave</span>→
+    <span class="node">Channel Erosion</span>→
+    <span class="node">Debris Flow</span>→
+    <span class="node">Downstream Flooding</span>
+  </div>
+</div>
+
+<div class="status-line" id="statusLine">Waiting for first data point...</div>
+
+<script>
+function fmt(v, digits) {
+  if (v === null || v === undefined || isNaN(Number(v))) return "—";
+  return Number(v).toFixed(digits);
+}
+
+function setRisk(prefix, p, isAlert) {
+  document.getElementById("p" + prefix).innerText = fmt(p, 3);
+  const w = (typeof p === "number" && isFinite(p)) ? Math.max(0, Math.min(1, p)) * 100 : 0;
+  const lower = prefix.toLowerCase();
+  document.getElementById(lower + "Bar").style.width = w + "%";
+  document.getElementById(lower + "Bar").style.background = isAlert ? "var(--red)" : "var(--blue)";
+  const badge = document.getElementById(lower + "Badge");
+  badge.className = "badge " + (isAlert ? "alert" : "normal");
+  badge.innerText = isAlert ? "ALERT" : "normal";
+}
+
+async function refresh() {
+  try {
+    const res = await fetch("status.json?t=" + Date.now());
+    if (!res.ok) throw new Error("status.json not found yet");
+    const data = await res.json();
+
+    // mode badge (live vs scenario replay)
+    const mb = document.getElementById("modeBadge");
+    if (data.mode === "scenario") {
+      mb.innerText = "SCENARIO REPLAY — unseen test trajectory";
+      mb.className = "badge mode scenario";
+    } else {
+      mb.innerText = "STREAMING PROTOTYPE — mixed live + simulated channels";
+      mb.className = "badge mode";
+    }
+
+    const r = data.latest_reading || {};
+    document.getElementById("waterLevel").innerHTML = fmt(r.water_level_m, 3) + '<span class="unit"> m</span>';
+    document.getElementById("waterTag").innerText = (r.sensor_status_water === "scenario_replay") ? "REPLAY" : "SYNTHETIC";
+    document.getElementById("rainfall").innerHTML = fmt(r.rainfall_mm_hr, 1) + '<span class="unit"> mm/hr</span>';
+    document.getElementById("temp").innerHTML = fmt(r.ambient_temp_c, 1) + '<span class="unit"> °C</span>';
+    document.getElementById("seismic").innerText = fmt(r.seismic_energy, 0);
+    document.getElementById("vibration").innerHTML = fmt(r.vibration_rms_g, 4) + '<span class="unit"> g</span>';
+    document.getElementById("tilt").innerHTML = fmt(r.tilt_deg, 4) + '<span class="unit"> °</span>';
+    document.getElementById("turbidity").innerHTML = fmt(r.turbidity_ntu, 2) + '<span class="unit"> NTU</span>';
+
+    const risk = data.risk;
+    const sat = data.satellite;
+    const banner = document.getElementById("alertBanner");
+    const reasons = [];
+    let statusPrefix = "";
+
+    if (risk) {
+      setRisk("Gradual", risk.p_gradual_smooth, risk.gradual_alert);
+      setRisk("Sudden", risk.p_sudden_smooth, risk.sudden_alert);
+      let gNote = "model " + fmt(risk.p_gradual_smooth, 3);
+      if (risk.p_gradual_satellite_adjusted !== undefined && risk.p_gradual_satellite_adjusted !== null) {
+        gNote += "  |  with satellite prior " + fmt(risk.p_gradual_satellite_adjusted, 3) +
+                 (sat && sat.multiplier ? " (×" + fmt(sat.multiplier, 2) + ")" : "");
+      }
+      document.getElementById("gradualNote").innerText = gNote;
+      document.getElementById("suddenNote").innerText =
+        "instantaneous " + fmt(risk.p_sudden, 3) + " (alert uses the smoothed value)";
+      if (risk.gradual_alert) reasons.push("gradual escalation");
+      if (risk.sudden_alert) reasons.push("sudden impact");
+      if (risk.satellite_event_alert) reasons.push("satellite-detected lake-area collapse");
+    } else {
+      document.getElementById("gradualNote").innerText = "collecting history (needs at least 2 rows)";
+      document.getElementById("suddenNote").innerText = "";
+      statusPrefix = "Collecting live history — risk scores appear after enough readings.  ";
+    }
+
+    const anyAlert = reasons.length > 0;
+    banner.className = "alert-banner" + (anyAlert ? " show" : "");
+    document.getElementById("alertTitle").innerText = anyAlert ? "ALERT: " + reasons.join(" + ") + "." : "";
+    document.getElementById("alertDetail").innerText = anyAlert
+      ? "Recommended: notify emergency coordination center, cross-check downstream cascade module, consider issuing downstream warning."
+      : "";
+    document.getElementById("cascade").className = "cascade" + (anyAlert ? " hot" : "");
+
+    // satellite card
+    const sb = document.getElementById("satBadge");
+    if (sat && sat.available !== false && sat.level) {
+      sb.innerText = sat.level;
+      sb.className = "badge " + ({ALERT: "alert", ELEVATED: "elevated", WATCH: "watch", NORMAL: "normal"}[sat.level] || "unknown");
+      document.getElementById("satMsg").innerText = sat.message || "";
+      document.getElementById("satMult").innerText = "×" + fmt(sat.multiplier, 2);
+      document.getElementById("satFill").innerText = fmt(sat.fill_fraction * 100, 0) + " %";
+      document.getElementById("satArea").innerText = fmt(sat.lake_lower_km2, 2) + " – " + fmt(sat.lake_upper_km2, 2) + " km²";
+      document.getElementById("satTrend").innerText =
+        (sat.growth_km2_per_yr >= 0 ? "+" : "") + fmt(sat.growth_km2_per_yr, 3) + " km²/yr";
+      document.getElementById("satScene").innerText = (sat.latest_good_scene || "—") + " (" + sat.scene_age_days + " d old)";
+      document.getElementById("satWarn").innerText = (sat.warnings || []).join("  |  ");
+    } else {
+      sb.innerText = "unavailable";
+      sb.className = "badge unknown";
+      document.getElementById("satMsg").innerText =
+        (sat && sat.message) || "Satellite layer not available (run: python satellite_risk.py)";
+    }
+
+    document.getElementById("statusLine").innerText =
+      statusPrefix + "Last updated: " + data.generated_at + "  |  rows of live history: " + (data.rows_of_history || 0) +
+      "  |  latest reading timestamp: " + (r.timestamp || "—");
+
+  } catch (e) {
+    document.getElementById("statusLine").innerText =
+      "Waiting for run_demo.py to produce the first status.json... (" + e.message + ")";
+  }
+}
+
+async function loadThumb() {
+  try {
+    const res = await fetch("satellite_status.json?t=" + Date.now());
+    if (!res.ok) return;
+    const s = await res.json();
+    if (!s.latest_images || !s.latest_images.overlay) return;
+    const img = document.getElementById("satThumb");
+    img.onerror = function () { img.style.display = "none"; };
+    img.style.display = "";
+    img.src = s.images_dir + "/" + s.latest_images.overlay;
+    document.getElementById("satThumbCap").innerText =
+      "Scene " + s.latest_good_scene + " — cyan: certain water, yellow: possible water, red: measurement basin";
+  } catch (e) { /* thumbnail is optional */ }
+}
+
+refresh();
+loadThumb();
+setInterval(refresh, 5000);
+setInterval(loadThumb, 60000);
+</script>
+
+</body>
+</html>

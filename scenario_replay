@@ -1,0 +1,105 @@
+"""
+GlacierGuard - Scenario replay (for the demo video)
+=====================================================
+Replays a REAL held-out escalating trajectory from synthetic_glacier_telemetry.csv through the live
+pipeline, so the dashboard shows a genuine model-driven ALERT on camera. Real calm conditions never
+produce one.
+
+Honest framing for the video: "this is a replay of an unseen TEST trajectory from our synthetic
+dataset (the model never trained on it), fed through the same live scoring path."
+
+How it works
+  * Picks a trajectory from the TEST_UNSEEN split (falls back to any split) with the most positive
+    rows of `target`.
+  * Rows before (first positive - lead_rows) are written instantly as warm-up, so the model has its
+    normal history and elapsed_min matches training. The rest are released one row per tick.
+  * Timestamps preserve the original spacing (timestamp_sec), shifted so the warm-up ends near now.
+
+Used by run_demo.py --scenario. Standalone check:  python scenario_replay.py
+"""
+import glob
+import os
+from datetime import datetime, timedelta, timezone
+
+import pandas as pd
+
+TELEMETRY_NAME = "synthetic_glacier_telemetry.csv"
+
+
+def _find_csv():
+    for d in (".", "/mnt/user-data/uploads", "/mnt/data", "/content", "/kaggle/input", os.path.expanduser("~")):
+        p = os.path.join(d, TELEMETRY_NAME)
+        if os.path.exists(p):
+            return p
+    hits = glob.glob(os.path.join(".", "**", TELEMETRY_NAME), recursive=True)
+    return hits[0] if hits else None
+
+
+class ScenarioReplay:
+    def __init__(self, csv_path=None, split="TEST_UNSEEN", target="target_gradual_escalates_2hr",
+                 lead_rows=30, trajectory_id=None):
+        path = csv_path or _find_csv()
+        if not path:
+            raise FileNotFoundError(f"{TELEMETRY_NAME} not found next to run_demo.py")
+        df = pd.read_csv(path).sort_values(["trajectory_id", "timestamp_sec"])
+        pool = df[df["split"] == split] if "split" in df.columns and (df["split"] == split).any() else df
+        if trajectory_id is None:
+            pos = pool.groupby("trajectory_id")[target].sum()
+            pos = pos[pos > 0]
+            if pos.empty:
+                raise ValueError(f"No trajectory with {target}==1 in split {split}")
+            trajectory_id = pos.idxmax()
+        self.traj = pool[pool["trajectory_id"] == trajectory_id].reset_index(drop=True)
+        self.trajectory_id = trajectory_id
+        self.split_used = split if pool is not df else "any"
+        self.first_positive = int(self.traj[self.traj[target] == 1].index[0])
+        self.warmup_end = max(0, self.first_positive - lead_rows)
+        now = datetime.now(timezone.utc).replace(second=0, microsecond=0)
+        self.t0 = now - timedelta(seconds=float(self.traj["timestamp_sec"].iloc[self.warmup_end]))
+        self.pos = self.warmup_end
+        self.finished = False
+
+    def _row(self, r):
+        def g(name, default):
+            v = r[name] if name in r.index else default
+            return default if pd.isna(v) else v
+        ts = self.t0 + timedelta(seconds=float(r["timestamp_sec"]))
+        return {
+            "timestamp_utc": ts.isoformat(),
+            "water_level_m": float(g("water_level_m", 0.0)),
+            "vibration_rms_g": float(g("vibration_rms_g", 0.0)),
+            "tilt_deg": float(g("tilt_deg", 0.0)),
+            "rainfall_mm_hr": float(g("rainfall_mm_hr", 0.0)),
+            "turbidity_ntu": float(g("turbidity_ntu", 0.0)),
+            "ambient_temp_c": float(g("ambient_temp_c", 0.0)),
+            "seismic_energy": float(g("seismic_energy", 0.0)),
+            "water_valid": int(g("water_valid", 1)),
+            "vibration_valid": int(g("vibration_valid", 1)),
+            "tilt_valid": int(g("tilt_valid", 1)),
+            "rainfall_valid": int(g("rainfall_valid", 1)),
+            "turbidity_valid": int(g("turbidity_valid", 1)),
+            "seismic_valid": int(g("seismic_valid", 1)),
+            "sensor_status_water": "scenario_replay",
+            "is_synthetic_water": True,
+        }
+
+    def warmup_rows(self):
+        return [self._row(self.traj.iloc[i]) for i in range(0, self.warmup_end)]
+
+    def next_row(self):
+        if self.pos >= len(self.traj):
+            self.finished = True
+            return None
+        row = self._row(self.traj.iloc[self.pos])
+        self.pos += 1
+        return row
+
+    def describe(self):
+        return (f"trajectory {self.trajectory_id} (split={self.split_used}), {len(self.traj)} rows, "
+                f"escalation starts at row {self.first_positive}, replay starts at row {self.warmup_end}")
+
+
+if __name__ == "__main__":
+    s = ScenarioReplay()
+    print(s.describe())
+    print("warm-up rows:", len(s.warmup_rows()), "| first live row:", s.next_row())
